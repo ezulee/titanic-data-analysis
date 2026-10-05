@@ -1,0 +1,12 @@
+name: Titanic_Analysis
+title: Titanic_Analysis
+username: jleenov
+account: jleenov
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 16953605
+bundleId: 11742901
+url: https://jleenov.shinyapps.io/Titanic_Analysis/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE

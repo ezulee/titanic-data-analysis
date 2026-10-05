@@ -1,0 +1,202 @@
+---
+title: "Titanic Analysis"
+date: "2026-03-22"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## App Title
+Survival of Passengers on the Titanic
+
+## App Link
+https://jleenov.shinyapps.io/Titanic_Analysis/
+
+## App Summary
+This shiny app performs two primary analyses. First, it shows whether the passengers survived or not according to their demographic information - age and gender. Second, it shows the relationship between cabin class and survival rate with a linear regression line. This app explores multiple statistical topics including demographic comparison, survival distribution, and class-based survival rate trends.
+
+## Full Code
+
+### Call Libraries
+```{r, eval=FALSE}
+
+library(shiny)
+library(plotly)
+library(dplyr)
+library(ggplot2)
+
+```
+
+Codes above call necessary libraries: shiny for the basic format, plotly for interactive visualization, dplyr for data filtering, and ggplot2 for drawing linear regression line.
+
+### Data Preparation
+
+```{r, eval=FALSE}
+# change data "Titanic" from table to dataframe
+df <- as.data.frame(Titanic)
+```
+
+Used an R built-in table data, "Titanic." By using as.data.frame(), changed data from table to data frame in order to apply dplyr, ggplot2, and plotly formula '~.' Assigned this dataframe to "df" for convenience.
+
+### Building UI
+
+```{r, eval=FALSE}
+# Define UI for application that draws a histogram
+ui <- fluidPage(
+
+    # Application title
+    titlePanel("Survival of Passengers on the Titanic"),
+
+    # Sidebar with selection of cabin class
+    sidebarLayout(
+        sidebarPanel(
+            selectInput("class_choice",
+                        "Select Cabin Class",
+                        choices = c("1st", "2nd", "3rd", "Crew")
+                        ),
+            
+            # Demographic -  age
+            checkboxGroupInput("age_choice",
+                               "Select Age Group",
+                               choices = c("Child", "Adult"),
+                               selected = c("Adult")
+                               ),
+            
+            # Demograhic - gender
+            checkboxGroupInput("gender_choice",
+                               "Select Gender Group",
+                               choices = c("Male", "Female"),
+                               selected = c("Male")
+                               ),
+        ),
+        
+        mainPanel(
+          tabsetPanel(
+            tabPanel("Demographic Info of Passengers and Survived/Not Survived",
+                     plotlyOutput("survival_plot"),
+                     tableOutput("stats_table")
+                     ),
+            
+            tabPanel("Cabin Class and Survival Rate",
+                      plotlyOutput("reg_plot")
+                      )
+            
+          )
+  
+        )
+    )
+)
+```
+
+Our "df" has 5 columns: Class (1st, 2nd, 3rd, Crew), Sex (Male, Female), Age (Child, Adult), Survived (Yes, No), Freq (number of people).
+
+
+Two primary analyses are: how many passengers survived or not according to their demographic information: cabin class, gender, age, and the relationship between the cabin class and survival rate & linear regression line.
+
+
+1) Sidebar for Demographic Information Selection
+
+Cabin class: To see how many of passengers survived or not according to their cabin class, "selectInput" is used to make dropdown menu because there are 4 criteria. Multiple choice is restricted because the cabin class was the primary independent variable for this analysis and to maintain a clear comparison.
+
+Gender and Age: "checkboxGroupInput" is used to enable selection between two groups for each variables, and multiple choices were enabled to give a holistic view according to cabin class, regardless of gender and age.
+
+
+2) Dividing Main Panel with Different Tabs
+
+By using "tabsetPanel" and "tabPanel," users can see two tabs with different statistical analysis. The first "tabPanel" is for how many passengers survived or not according to their demographic information, and the second "tabPanel" is for the relationship between the cabin class and survival rate, and linear regression line.
+
+
+## Server Logic
+### 1) Reactive Data Filtering
+```{r, eval=FALSE}
+# Define server logic
+server <- function(input, output) {
+  
+  # data filtering
+  filtered_df <- reactive({
+    df %>%
+    filter(Class == input$class_choice,
+           Age %in% input$age_choice,
+           Sex %in% input$gender_choice) %>%
+    group_by(Survived) %>%
+    summarise(Count = sum(Freq))
+  })
+```
+
+The reactive expression "filtered_df" filters the dataset by class, age, and sex. By using "reactive()," "filtered_df" can dynamically respond to different user inputs. Defining reactive data enables the variable to be shared across multiple outputs without repeating the same calculations.
+
+### 2) Creating a Bar Plot using Plotly
+```{r, eval=FALSE}    
+    # draw a plot
+    output$survival_plot <- renderPlotly({
+      d <- filtered_df()
+    
+      plot_ly(d,
+              x = ~Survived,
+              y = ~Count,
+              type = "bar") %>%
+        
+        layout(title = "Survivor Statistics",
+               xlab = "survived",
+               ylab = "number of people")
+    })
+    
+    output$stats_table <- renderTable({filtered_df()})
+```
+
+Plotly is used to make an interactive bar plot, dynamically responding to user inputs - class, age, gender. To wrap the plotly code, "renderPlotly" is used to generate interactive visualization. And "renderTable" is used to show the filtered output as a table, complementing the bar plot by providing a clear numeric reference.
+
+### 3) Creating Regression Line using ggplot2
+```{r, eval=FALSE}    
+    # calculate survival rate according to cabin class
+    reg_data <- reactive({
+      df %>%
+        group_by(Class, Survived) %>%
+        summarise(Count = sum(Freq)) %>%
+        group_by(Class) %>%
+        mutate(Rate = (Count / sum(Count)) * 100) %>%
+        filter(Survived == "Yes") %>%
+        mutate(Class_num = as.numeric(Class))
+    })
+  
+    # draw a regression line with ggplot2
+    output$reg_plot <- renderPlotly({
+      r <- ggplot(reg_data(), aes(x = Class_num, y = Rate)) +
+        geom_point(color = "darkred") +
+        geom_smooth(method = "lm", color = "darkblue", se = FALSE) +
+        scale_x_continuous(breaks = 1:4, labels = c("1st", "2nd", "3rd", "Crew")) +
+        labs(x = "Class", y = "Survival Rate (%)") +
+        theme_minimal()
+      ggplotly(r)
+    })
+      
+    # print regression
+    output$reg_summary <- renderPrint({
+      summary(lm(Rate ~ Class_num, data = reg_data()))
+    })
+    
+    
+}
+
+# Run the application 
+shinyApp(ui = ui, server = server)
+
+```
+
+The "reg_data" reactive expression processes the raw frequencies into percentages and converts categorical classes into numeric values, which is required for linear modeling. The "lm()" function is then used to perform a regression analysis, and the results are visualized with a trend line using "geom_smooth." This provides a simple visual comparison of survival probabilities across different groups of the Titanic’s social structure.
+To ensure visual precision, the scale_x_continuous() function is implemented. Since the 'Class' variable is numeric, "breaks = 1:4" ensures the x-axis only displays whole numbers representing the four categories: 1st, 2nd, 3rd Class, and the Crew (ship's personnel). Class was converted into numeric values (1–4) for visualization purposes. The passenger classes (1st, 2nd, and 3rd) have a natural order, while Crew was included as a separate group because it represents a different role on the ship rather than a lower passenger class. It is displayed alongside the passenger classes for comparison. The regression line is used to explore the relationship between cabin class and survival rate. The plot shows that survival rates tend to decrease as passenger class moves from 1st to 3rd, with Crew included as a separate comparison group. Since class is not a strictly continuous variable, the line should be interpreted as a general trend rather than a precise linear relationship.
+
+## Interesting Points in Analysis
+
+1. Socioeconomic Status and Survival Rate
+When we see the linear regression line showing the relationship between the cabin class and survival rate, we can observe a decreasing pattern: when the class number goes up (1st-2nd-3rd-Crew), the survival rate goes down. And when we see a general population regardless of their age and gender, the 1st cabin is the only one that the number of survivors exceeds the number of people who died.
+
+2. Trend of Social Norm: Children and Women First
+When we check only children or women to see whether they were survived, there is a clear trend: No children in the 1st and 2nd cabins died (there were no children in Crew group), and similarly, the number of women who survived is much higher than that of men in the 1st and 2nd cabins. This trend shows the social norm of the time.
+
+3. Breakdown of Trend
+The most interesting feature occurs at the 3rd cabin. Regarding the age, 52 children from the 3rd cabin died, while 27 survived. And regarding the gender, 106 women from the 3rd cabin died, while 90 survived. Of course when we include adult male, the number of people died increases dramatically. But compared to the 1st, 2nd cabins, and Crew group, the 3rd cabin is the only cabin that shows the opposite trend in fatalities of children and women - different from that time's social norm. This trend can be interpreted in multiple ways. They could have been marginalized from the rescue, and in consequence, children and women did not have opportunities to be put on the rescue boat. Also, because of the prevalence of a lack of resources in their daily environments, they could have utilized individual survival strategies, where children and women with weaker physical features became more disadvantageous. Overall, this disparity suggests that adherence to social morality during a crisis may be a luxury of the privileged, while those in lower classes were forced into a more chaotic and individualistic struggle for survival.
+
+
